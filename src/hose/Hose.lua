@@ -233,6 +233,16 @@ function Hose:saveToXML(key, xmlFile)
                     xmlFile:setString(saveKey .. "#objectName", object:getName())
                 end
 
+                -- v24: also persist a stable, order-independent identity so hose reconnect
+                -- survives the connector list being reshuffled when other manure-connected
+                -- placeables/vehicles are added or removed between saves.
+                if object.getUniqueId ~= nil then
+                    local objectUniqueId = object:getUniqueId()
+                    if objectUniqueId ~= nil then
+                        xmlFile:setString(saveKey .. "#objectUniqueId", objectUniqueId)
+                    end
+                end
+
                 -- No need to store anything else.
                 if connector.isParkPlace then
                     return
@@ -256,17 +266,26 @@ function Hose:loadFromXML(key, xmlFile, valid)
         local connectorId = xmlFile:getInt(loadKey .. "#connectorId")
         local objectId = xmlFile:getInt(loadKey .. "#objectId")
         local objectName = xmlFile:getString(loadKey .. "#objectName")
+        local objectUniqueId = xmlFile:getString(loadKey .. "#objectUniqueId")
 
-        local targetExists = g_currentMission.manureSystem:connectorObjectExists(objectId)
-        print(("[MS-LOAD-DIAG]     grabNode(%d): grabNodeId=%s connectorId=%s objectId=%s targetExists=%s valid=%s"):format(i, tostring(grabNodeId), tostring(connectorId), tostring(objectId), tostring(targetExists), tostring(valid)))
+        -- v24: resolve the connected object by its stable uniqueId first. This is
+        -- order-independent and survives other manure-connected placeables/vehicles being
+        -- added or removed since the save (which reshuffles the load-order index the
+        -- connection used to be stored under). Fall back to the legacy index for saves
+        -- written before v24, or if the uniqueId is no longer present.
+        local object = g_currentMission.manureSystem:getConnectorObjectByUniqueId(objectUniqueId)
+        local resolvedBy = object ~= nil and "uniqueId" or "none"
+        if object == nil and g_currentMission.manureSystem:connectorObjectExists(objectId) then
+            object = g_currentMission.manureSystem:getConnectorObject(objectId)
+            resolvedBy = "index"
+        end
+        print(("[MS-LOAD-DIAG]     grabNode(%d): grabNodeId=%s connectorId=%s objectId=%s objectUniqueId=%s resolvedBy=%s valid=%s"):format(i, tostring(grabNodeId), tostring(connectorId), tostring(objectId), tostring(objectUniqueId), resolvedBy, tostring(valid)))
 
-        if targetExists then
-            local object = g_currentMission.manureSystem:getConnectorObject(objectId)
-
-            --Do a check on the saved object name to filter out obvious cases.
-            local isNotTheSameObject = objectName ~= nil and object:getName() ~= objectName
+        if object ~= nil then
+            --Name veto only applies to the fragile index path; a uniqueId match is authoritative.
+            local isNotTheSameObject = resolvedBy == "index" and objectName ~= nil and object.getName ~= nil and object:getName() ~= objectName
             if valid and not isNotTheSameObject then
-                print(("[MS-LOAD-DIAG]     -> attach grabNode %s to connector %s"):format(tostring(grabNodeId), tostring(connectorId)))
+                print(("[MS-LOAD-DIAG]     -> attach grabNode %s to connector %s (via %s)"):format(tostring(grabNodeId), tostring(connectorId), resolvedBy))
                 self:attach(grabNodeId, connectorId, object)
             else
                 if isNotTheSameObject then

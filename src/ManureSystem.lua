@@ -340,6 +340,24 @@ function ManureSystem:getConnectorObjectId(object)
     return nil
 end
 
+---Return the connector object with the given stable uniqueId, or nil. (v24)
+-- Order-independent lookup used by hose reconnect so a saved hose connection
+-- survives other manure-connected placeables/vehicles being added or removed
+-- between saves (which reshuffles the load-order index the connection was stored under).
+function ManureSystem:getConnectorObjectByUniqueId(uniqueId)
+    if uniqueId == nil then
+        return nil
+    end
+
+    for _, element in ipairs(self.manureSystemConnectors) do
+        if element.getUniqueId ~= nil and element:getUniqueId() == uniqueId then
+            return element
+        end
+    end
+
+    return nil
+end
+
 ---Return true when the object exists, false otherwise.
 function ManureSystem:connectorObjectExists(id)
     return self.manureSystemConnectors[id] ~= nil

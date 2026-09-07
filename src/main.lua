@@ -15,7 +15,7 @@ local modName = g_currentModName or "unknown"
 ---@type ManureSystem the current loaded mod env.
 local modEnvironment
 
-print("[ManureSystem] ===== FS25 conversion build: v23 (Ray custom) loaded =====")
+print("[ManureSystem] ===== FS25 conversion build: v24 (Ray custom) loaded =====")
 
 -- FS25: table.copy was removed from the sandboxed Lua environment; provide a shim so
 -- the mod's few table.copy() calls keep working. Guarded so we never override a real
