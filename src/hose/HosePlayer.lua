@@ -598,6 +598,18 @@ function HosePlayer.fs25_playerUpdate(player, dt)
         return
     end
 
+    -- The mission can create/register PlayerInputComponent before ManureSystem is
+    -- loaded, which means our appended registerActionEvents hook never receives that
+    -- first call. Register once from Player.update as a fallback for an already
+    -- initialized local player.
+    if player.msHoseActionEvents == nil and not player.msHoseActionRegistrationAttempted then
+        local inputComponent = player.inputComponent
+        if inputComponent ~= nil then
+            player.msHoseActionRegistrationAttempted = true
+            HosePlayer.fs25_registerActionEvents(inputComponent)
+        end
+    end
+
     local ok, err = pcall(HosePlayer.fs25_playerUpdateInternal, player, dt)
     if not ok and not player.msLoggedUpdateError then
         player.msLoggedUpdateError = true
