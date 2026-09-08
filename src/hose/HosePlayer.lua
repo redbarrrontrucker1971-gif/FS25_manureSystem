@@ -26,23 +26,34 @@ function HosePlayer.new(isClient, isServer, mission, input)
     self.mission = mission
     self.input = input
 
-    -- FS25: the Player class and its player-state machine were rewritten, so these
-    -- FS22-era injections are incompatible (PlayerStatePickup etc. are nil, which
-    -- crashed HosePlayer during player load). Only install them when the legacy API
-    -- is actually present; otherwise on-foot hose handling stays disabled for this
-    -- build (to be re-implemented against the FS25 player API in a later build).
-    local hasLegacyPlayerApi = Player ~= nil
-        and PlayerStateThrow ~= nil and PlayerStatePickup ~= nil
-        and PlayerStateWalk ~= nil and PlayerStateRun ~= nil
-        and Player.pickUpObject ~= nil and Player.checkObjectInRange ~= nil
+    -- Prefer the FS25 component API when it is available. FS25 still exposes
+    -- several legacy-looking Player/PlayerState symbols, so testing the old API
+    -- first can incorrectly select the FS22 path and silently disable all on-foot
+    -- hose prompts.
+    local hasFS25PlayerApi = Player ~= nil
+        and Player.update ~= nil
+        and PlayerInputComponent ~= nil
+        and PlayerInputComponent.registerActionEvents ~= nil
 
-    if not hasLegacyPlayerApi then
+    if hasFS25PlayerApi then
         if HosePlayer.FS25_HOSE_ENABLED == false or g_manureSystemDisableFS25Hose == true then
             print("[MS-HOSE-FS25] FS25 player API detected but on-foot hose interaction is DISABLED via feature flag; skipping install (build v23).")
             return self
         end
         print("[MS-HOSE-FS25] FS25 player API detected; installing on-foot hose interaction prototype (build v23).")
         HosePlayer.installFS25(self)
+        return self
+    end
+
+    -- Fall back to the original FS22 hooks only when the FS25 component API is
+    -- absent and the complete legacy API is present.
+    local hasLegacyPlayerApi = Player ~= nil
+        and PlayerStateThrow ~= nil and PlayerStatePickup ~= nil
+        and PlayerStateWalk ~= nil and PlayerStateRun ~= nil
+        and Player.pickUpObject ~= nil and Player.checkObjectInRange ~= nil
+
+    if not hasLegacyPlayerApi then
+        print("[MS-HOSE-FS25] No supported player interaction API found; on-foot hose interaction is unavailable.")
         return self
     end
 
