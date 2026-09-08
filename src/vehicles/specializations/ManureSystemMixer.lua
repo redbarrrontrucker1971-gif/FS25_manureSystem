@@ -89,8 +89,9 @@ end
 ---@return void
 function ManureSystemMixer:onDelete()
     local spec = self.spec_manureSystemMixer
-    if self.isClient then
+    if self.isClient and spec ~= nil and spec.effects ~= nil then
         g_effectManager:deleteEffects(spec.effects)
+        spec.effects = nil
     end
 end
 
