@@ -44,7 +44,8 @@ function ManureSystemPumpMotor.initSpecialization()
     schema:setXMLSpecializationType("ManureSystemPumpMotor")
     ManureSystem.registerConfigurationRestrictionsXMLPaths(schema, "vehicle.manureSystemPumpMotor")
     schema:register(XMLValueType.BOOL, "vehicle.manureSystemPumpMotor#isStandalone", "Fill volume index to interact with")
-    schema:register(XMLValueType.BOOL, "vehicle.manureSystemPumpMotor#useStandalonePumpText", "Fill unit index to pump from")
+    schema:register(XMLValueType.BOOL, "vehicle.manureSystemPumpMotor#useStandalonePumpText", "Use standalone pump action text")
+    schema:register(XMLValueType.BOOL, "vehicle.manureSystemPumpMotor#preserveVanillaDischarge", "Keep vanilla discharge triggers active alongside Manure System pumping")
     schema:register(XMLValueType.FLOAT, "vehicle.manureSystemPumpMotor#toReachMaxEfficiencyTime", "Offset for the fillarm interaction")
     schema:register(XMLValueType.FLOAT, "vehicle.manureSystemPumpMotor#litersPerSecond", "Offset for the fillarm interaction")
     schema:register(XMLValueType.FLOAT, "vehicle.manureSystemPumpMotor#autoStopPercentageIn", "Offset for the fillarm interaction")
@@ -150,6 +151,7 @@ function ManureSystemPumpMotor:onLoad(savegame)
 
     spec.isStandalone = self.xmlFile:getValue("vehicle.manureSystemPumpMotor#isStandalone", false)
     spec.useStandalonePumpText = self.xmlFile:getValue("vehicle.manureSystemPumpMotor#useStandalonePumpText", spec.isStandalone)
+    spec.preserveVanillaDischarge = self.xmlFile:getValue("vehicle.manureSystemPumpMotor#preserveVanillaDischarge", false)
     spec.fillUnitIndex = self.xmlFile:getValue("vehicle.manureSystemPumpMotor#fillUnitIndex", ManureSystemPumpMotor.DEFAULT_FILLUNIT_INDEX)
 
     local maxTime = self.xmlFile:getValue("vehicle.manureSystemPumpMotor#toReachMaxEfficiencyTime", 1500)
@@ -205,7 +207,7 @@ function ManureSystemPumpMotor:onLoad(savegame)
         SpecializationUtil.removeEventListener(self, "onWriteUpdateStream", ManureSystemPumpMotor)
         SpecializationUtil.removeEventListener(self, "onRegisterActionEvents", ManureSystemPumpMotor)
     else
-        if SpecializationUtil.hasSpecialization(Dischargeable, self.specializations) then
+        if not spec.preserveVanillaDischarge and SpecializationUtil.hasSpecialization(Dischargeable, self.specializations) then
             ManureSystemPumpMotor.disableDischargeable(self)
         end
     end
