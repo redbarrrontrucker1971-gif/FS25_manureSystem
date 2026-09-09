@@ -545,6 +545,8 @@ function HosePlayer.fs25_registerActionEvents(inputComponent)
         reg(InputAction.MS_ATTACH_HOSE, HosePlayer.fs25_onAttach)
         reg(InputAction.MS_DETACH_HOSE, HosePlayer.fs25_onDetach)
         reg(InputAction.MS_TOGGLE_FLOW, HosePlayer.fs25_onToggleFlow)
+        reg(InputAction.MS_ACTIVATE_PUMP, HosePlayer.fs25_onTogglePump)
+        reg(InputAction.MS_TOGGLE_PUMP_DIRECTION, HosePlayer.fs25_onTogglePumpDirection)
 
         if contextName ~= nil then
             g_inputBinding:endActionEventsModification()
@@ -622,6 +624,8 @@ function HosePlayer.fs25_playerUpdateInternal(player, dt)
     HosePlayer.fs25_setActionActive(player, InputAction.MS_ATTACH_HOSE, false)
     HosePlayer.fs25_setActionActive(player, InputAction.MS_DETACH_HOSE, false)
     HosePlayer.fs25_setActionActive(player, InputAction.MS_TOGGLE_FLOW, false)
+    HosePlayer.fs25_setActionActive(player, InputAction.MS_ACTIVATE_PUMP, false)
+    HosePlayer.fs25_setActionActive(player, InputAction.MS_TOGGLE_PUMP_DIRECTION, false)
 
     -- Carrying a loose hose end: keep its reference and hunt for connectors.
     if player.hoseGrabNodeId ~= nil and player.msCarriedHoseId ~= nil then
@@ -804,6 +808,22 @@ function HosePlayer.fs25_offerConnectedPrompts(player, hose, grabNode)
     if not hasFlow or not connector.hasOpenManureFlow then
         HosePlayer.fs25_setActionActive(player, InputAction.MS_DETACH_HOSE, true, g_i18n:getText("input_MS_DETACH_HOSE"))
     end
+
+    -- FS25 standalone pumps are not an active vehicle while sitting on the ground,
+    -- so their specialization action events never become available. Offer the same
+    -- controls through either hose end connected to that pump.
+    if object.isStandalonePump ~= nil and object:isStandalonePump() then
+        local pumpSpec = object.spec_manureSystemPumpMotor
+        if pumpSpec ~= nil and pumpSpec.isActive then
+            local pumpTextKey = object:isPumpRunning() and "action_deactivatePump" or "action_activatePump"
+            HosePlayer.fs25_setActionActive(player, InputAction.MS_ACTIVATE_PUMP, true, g_i18n:getText(pumpTextKey):format(object.typeDesc))
+
+            if not object:isPumpRunning() and object:canChangePumpDirection() then
+                local directionKey = object:isPumpingIn() and "action_directionLeftRight" or "action_directionRightLeft"
+                HosePlayer.fs25_setActionActive(player, InputAction.MS_TOGGLE_PUMP_DIRECTION, true, g_i18n:getText(directionKey))
+            end
+        end
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -910,5 +930,38 @@ function HosePlayer.fs25_onToggleFlow(inputComponent, actionName, inputValue, ca
     if hasFlow and not vehicle:getIsAnimationPlaying(animationName) then
         vehicle:setIsManureFlowOpen(desc.connectorId, not connector.hasOpenManureFlow, false)
         print(HosePlayer.LOG .. " toggleFlow: toggled manure flow on the connected connector.")
+    end
+end
+
+
+-- Start/stop a standalone pump while looking at either connected hose end.
+function HosePlayer.fs25_onTogglePump(inputComponent, actionName, inputValue, callbackState, isAnalog)
+    local player = inputComponent.player
+    if player == nil or not player.lastFoundObjectIsHose or not player.lastFoundHoseIsConnected then
+        return
+    end
+    local hose = NetworkUtil.getObject(player.lastFoundHose)
+    local grabNode = hose ~= nil and hose:getGrabNodeById(player.lastFoundGradNodeId) or nil
+    local desc = grabNode ~= nil and hose.spec_hose.grabNodesToObjects[grabNode.id] or nil
+    local pump = desc ~= nil and desc.vehicle or nil
+    if pump ~= nil and pump.isStandalonePump ~= nil and pump:isStandalonePump() then
+        ManureSystemPumpMotor.actionEventTogglePump(pump, actionName, inputValue, callbackState, isAnalog)
+        print(HosePlayer.LOG .. " standalone pump: toggled pump from connected hose interaction.")
+    end
+end
+
+-- Reverse which standalone-pump port acts as inlet/outlet.
+function HosePlayer.fs25_onTogglePumpDirection(inputComponent, actionName, inputValue, callbackState, isAnalog)
+    local player = inputComponent.player
+    if player == nil or not player.lastFoundObjectIsHose or not player.lastFoundHoseIsConnected then
+        return
+    end
+    local hose = NetworkUtil.getObject(player.lastFoundHose)
+    local grabNode = hose ~= nil and hose:getGrabNodeById(player.lastFoundGradNodeId) or nil
+    local desc = grabNode ~= nil and hose.spec_hose.grabNodesToObjects[grabNode.id] or nil
+    local pump = desc ~= nil and desc.vehicle or nil
+    if pump ~= nil and pump.isStandalonePump ~= nil and pump:isStandalonePump() then
+        ManureSystemPumpMotor.actionEventTogglePumpDirection(pump, actionName, inputValue, callbackState, isAnalog)
+        print(HosePlayer.LOG .. " standalone pump: reversed pump direction from connected hose interaction.")
     end
 end
